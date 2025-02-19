@@ -1,22 +1,43 @@
+def remote = [:]
 pipeline {
     agent any
-    
+
+    environment {
+        REPO = "zabella/php"
+        DOCKER_IMAGE = 'php'
+        DOCKER_TAG = 'latest'
+        HOST = "3.94.85.77"
+    }
+
     stages {
-        stage('Build') {
+        stage('Configure credentials') {
             steps {
-                script {
-                    def app = docker.build("your-dockerhub-username/jenkins-php")
+                withCredentials([sshUserPrivateKey(credentialsId: 'jenkins_ssh_key', keyFileVariable: 'private_key', usernameVariable: 'username')]) {
+                    script {
+            remote.name = "${env.HOST}"
+            remote.host = "${env.HOST}"
+            remote.user = "$username"
+            remote.identity = readFile("$private_key")
+            remote.allowAnyHosts = true
+          }
                 }
             }
         }
-        
-        stage('Push') {
+
+        stage('Clone Repository') {
+            steps {
+                git (url: 'https://github.com/Bella0708/-jenkins-php', branch: 'main')
+            }
+        }
+
+       
+
+        stage('Build and Push Docker Image') {
             steps {
                 script {
-                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
-                        def app = docker.image("your-dockerhub-username/jenkins-php")
-                        app.push("${env.BUILD_NUMBER}")
-                        app.push("latest")
+                    def image = docker.build("${env.REPO}:${env.BUILD_ID}")
+                    docker.withRegistry('https://registry-1.docker.io', 'hub_token') {
+                        image.push()
                     }
                 }
             }
